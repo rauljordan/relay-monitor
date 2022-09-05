@@ -1,14 +1,11 @@
 package main
 
 import (
+	"context"
 	"flag"
-	"log"
-	"os"
+	"time"
 
-	monitor "github.com/ralexstokes/relay-monitor/pkg"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"gopkg.in/yaml.v3"
+	"github.com/ralexstokes/relay-monitor/internal/consensus"
 )
 
 var (
@@ -17,29 +14,14 @@ var (
 
 func main() {
 	flag.Parse()
-
-	loggingConfig := zap.NewDevelopmentConfig()
-	loggingConfig.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-
-	zapLogger, err := loggingConfig.Build()
+	bw, err := consensus.New(
+		consensus.WithEndpoint("http://localhost:3500"),
+		consensus.WithGenesisTime(1606824023),
+	)
 	if err != nil {
-		log.Fatalf("could not open log file: %v", err)
+		panic(err)
 	}
-	defer zapLogger.Sync()
-
-	logger := zapLogger.Sugar()
-
-	data, err := os.ReadFile(*configFile)
-	if err != nil {
-		logger.Fatalf("could not read config file: %v", err)
-	}
-
-	config := &monitor.Config{}
-	err = yaml.Unmarshal(data, config)
-	if err != nil {
-		logger.Fatalf("could not load config: %v", err)
-	}
-
-	m := monitor.New(config, zapLogger)
-	m.Run()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	bw.Start(ctx)
 }
